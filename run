@@ -3,7 +3,7 @@
 # javac -version
 # javac 1.6.0_41
 
-javac ex01_M1.java
+javac ex01_M2.java
 
 
 # java -version
@@ -11,4 +11,4 @@ javac ex01_M1.java
 # Java(TM) SE Runtime Environment (build 1.6.0_41-b02)
 # Java HotSpot(TM) Server VM (build 20.14-b01, mixed mode)
 
-java ex01_M1
+java ex01_M2

