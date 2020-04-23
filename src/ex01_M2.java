@@ -67,8 +67,8 @@ public class ex01_M2 {
             String body = new String(bytesBody);
 
             if("1".equals(body)){
-                System.out.println(url);
                 if(DEBUG_MESSAGE) {
+                    System.out.println(url);
                     System.out.println(String.format("The %s return 1!", url));
                 }
                 return FOUND_THE_PASSWORD;
