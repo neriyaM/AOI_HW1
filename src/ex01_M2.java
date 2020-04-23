@@ -15,6 +15,10 @@ public class ex01_M2 {
 
     // Const
     public static int NANOSECONDS_IN_MILLISECONDS = 1000000;
+    public static char[] AVAILABLE_PASSWORD_CHAR = new char[]{'0','1','2','3','4','5','6','7','8','9', 'a','b','c','d','e','f','g',
+            'h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y','z','A','B','C','D','E','F','G',
+            'H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z'};
+    public static String TEST_CHAR = "!";
 
     // Configuration
     public static int MIN_PASSWORD_LENGTH = 1;
@@ -30,6 +34,9 @@ public class ex01_M2 {
     public static float MIN_RATIO = 1.05f;
     public static float MAX_RATIO = 150f;
     public static float RATIO_DIFFERENCE_FIRST_TO_SECONDS = 0.15f;
+
+    public static boolean DO_N_TIME_CHECK = true;
+    public static int N_TIME_CHECK = 2;
 
     // Flags
     public static long FOUND_THE_PASSWORD = -1;
@@ -91,6 +98,9 @@ public class ex01_M2 {
 
     public static void foundTheRightPassword(String password)
     {
+        if (DEBUG_MESSAGE) {
+            System.out.println("The timing attack worked!");
+        }
         System.out.println(USER_ID + " " + password + " " + DIFFICULTY);
         exit(0);
     }
